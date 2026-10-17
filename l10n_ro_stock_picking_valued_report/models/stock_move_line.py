@@ -110,6 +110,11 @@ class StockMoveLine(models.Model):
         }
 
     def _get_l10n_ro_values_from_purchase_line(self):
+        """Values of the received goods: the stock move value, in the company currency,
+        whatever the currency of the purchase order. The NIR is an accounting document
+        and the stock is valued in lei (Legea 82/1991 art. 3): converting back to the
+        order currency would neither match the stock value nor the vendor bill once it
+        changes the valuation."""
         self.ensure_one()
         purchase_line = self.l10n_ro_purchase_line_id
         move_values = self._get_l10n_ro_values_from_stock_move()
@@ -123,24 +128,6 @@ class StockMoveLine(models.Model):
             price_tax = taxes["total_included"] - taxes["total_excluded"]
             move_values["l10n_ro_price_tax"] = price_tax
             move_values["l10n_ro_price_total"] += price_tax
-        if purchase_line.currency_id != self.company_id.currency_id:
-            move_values = {
-                key: self.company_id.currency_id._convert(
-                    value,
-                    purchase_line.currency_id,
-                    self.company_id,
-                    self.date,
-                )
-                for key, value in move_values.items()
-                if key
-                in [
-                    "l10n_ro_price_unit",
-                    "l10n_ro_price_subtotal",
-                    "l10n_ro_price_tax",
-                    "l10n_ro_price_total",
-                    "l10n_ro_additional_charges",
-                ]
-            }
         return move_values
 
     def _get_l10n_ro_values_from_stock_move(self):
