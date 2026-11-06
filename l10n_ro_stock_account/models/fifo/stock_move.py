@@ -50,6 +50,46 @@ class StockMove(models.Model):
         readonly=True,
     )
 
+    def _l10n_ro_in_qty_at(self, location, lot=None):
+        """Valued incoming quantity of ``self`` that landed in ``location``
+        (product UoM).
+
+        The per-location FIFO stack is fed line by line: a receipt whose lines
+        go to two locations (3 units on a shelf, 2 in the parent location)
+        contributes 3 to the shelf's stack and 2 to the parent's, not its whole
+        quantity to the location of its header."""
+        self.ensure_one()
+        return sum(
+            self._get_in_move_lines(lot)
+            .filtered(lambda line: line.location_dest_id == location)
+            .mapped("quantity_product_uom")
+        )
+
+    def _l10n_ro_remaining_at(self, quantity, at_date=None):
+        """FIFO slice for ``quantity`` units left of ``self`` in one location,
+        valued at the move's unit value (at ``at_date`` when given)."""
+        self.ensure_one()
+        if at_date:
+            data = self._get_value_data(at_date=at_date)
+            valued_qty, value = data["quantity"], data["value"]
+        else:
+            valued_qty, value = self._get_valued_qty(), self.value
+        unit_value = value / valued_qty if valued_qty else 0.0
+        return {
+            "move_id": self.id,
+            "quantity": quantity,
+            "value": unit_value * quantity,
+            "description": self.display_name,
+        }
+
+    def _l10n_ro_in_locations(self):
+        """The valued locations the incoming lines of ``self`` landed in."""
+        self.ensure_one()
+        locations = self._get_in_move_lines().location_dest_id
+        return (locations or self.location_dest_id).filtered(
+            lambda location: location._should_be_valued()
+        )
+
     def _compute_remaining_qty(self):
         res = super()._compute_remaining_qty()
         ro_fifo_moves = self.filtered(
@@ -72,15 +112,16 @@ class StockMove(models.Model):
         # round-trip; avoids one DB hit per move.
         ro_fifo_moves.fetch(["location_dest_id", "product_id"])
         for move in ro_fifo_moves:
-            move.remaining_qty = 0
-            if move.location_dest_id._should_be_valued():
-                location = move.location_dest_id
+            # What is left of the move in every location its lines landed in.
+            remaining = 0
+            for location in move._l10n_ro_in_locations():
                 remaining_by_product = move.product_id._get_remaining_moves_ro(
                     location=location
                 )
-                move.remaining_qty = remaining_by_product.get(move.product_id, {}).get(
+                remaining += remaining_by_product.get(move.product_id, {}).get(
                     move, 0
                 )
+            move.remaining_qty = remaining
         return res
 
     def search_remaining_qty(self, operator, value):
