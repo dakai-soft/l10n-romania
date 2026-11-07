@@ -62,7 +62,13 @@ class ProductProduct(models.Model):
             moves = self.env["stock.move"].concat(moves)
             if not moves:
                 continue
-            qty_by_move = {m: m.quantity for m in moves[1:]}
+            if location and location.is_valued:
+                # Only the part of each move that landed in this location.
+                qty_by_move = {
+                    m: m._l10n_ro_in_qty_at(location, lot=lot) for m in moves[1:]
+                }
+            else:
+                qty_by_move = {m: m.quantity for m in moves[1:]}
             qty_by_move[moves[0]] = remaining_qty
             moves_qty_by_product[product] = qty_by_move
         return moves_qty_by_product
@@ -182,17 +188,25 @@ class ProductProduct(models.Model):
         # Going up to get the quantity in the argument
         while quantity > 0 and fifo_stack:
             move = fifo_stack.pop(0)
-            move_values = {
-                "move_id": move.id,
-                "quantity": move.remaining_qty,
-                "value": move.remaining_value,
-                "description": move.display_name,
-            }
-            if at_date:
-                move_values = move.with_context(
-                    l10n_ro_valuation_date=at_date
-                )._get_value_data()
-                move_values["move_id"] = move.id
+            if location and location.is_valued:
+                # What is left of the move in this location, at the move's unit
+                # value: ``remaining_qty`` / ``remaining_value`` cover every
+                # location the move's lines landed in.
+                move_values = move._l10n_ro_remaining_at(
+                    remaining_moves[move], at_date=at_date
+                )
+            else:
+                move_values = {
+                    "move_id": move.id,
+                    "quantity": move.remaining_qty,
+                    "value": move.remaining_value,
+                    "description": move.display_name,
+                }
+                if at_date:
+                    move_values = move.with_context(
+                        l10n_ro_valuation_date=at_date
+                    )._get_value_data()
+                    move_values["move_id"] = move.id
             rem_qty = move_values["quantity"]
             move_value = move_values["value"]
             # A move in the stack can have nothing left to consume: an incoming
@@ -245,8 +259,15 @@ class ProductProduct(models.Model):
             domain &= Domain([("move_line_ids.lot_id", "in", lot.id)])
         if at_date:
             domain &= Domain([("date", "<=", at_date)])
-        if location:
+        if location and external_location:
             domain &= Domain([("location_dest_id", "=", location.id)])
+        elif location:
+            # The move's lines, not its header, say where the goods landed: a
+            # receipt split between a shelf and its parent location feeds both
+            # stacks.
+            domain &= Domain([("location_dest_id", "=", location.id)]) | Domain(
+                [("move_line_ids.location_dest_id", "=", location.id)]
+            )
         # an external location holds no valued stock, so its stack is made of
         # what left rather than what came in
         domain &= Domain([("is_out" if external_location else "is_in", "=", True)])
@@ -372,7 +393,10 @@ class ProductProduct(models.Model):
         while self.uom_id.compare(fifo_stack_size, 0) > 0 and idx < len(moves_in):
             move = moves_in[idx]
             idx += 1
-            in_qty = move._get_valued_qty()
+            if location and not external_location:
+                in_qty = move._l10n_ro_in_qty_at(location, lot=lot)
+            else:
+                in_qty = move._get_valued_qty()
             # Moves that value nothing (all lines excluded from valuation,
             # quantity corrected to 0 after validation) must not enter the
             # stack: they would be reported with a remaining quantity of zero.
