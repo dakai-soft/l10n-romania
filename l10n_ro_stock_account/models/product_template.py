@@ -52,7 +52,24 @@ class ProductTemplate(models.Model):
                 )
             accounts["expense"] = dest_valuation or accounts["stock_valuation"]
         if self.categ_id.l10n_ro_stock_account_change:
-            if src_location.usage == "internal":
+            if (
+                stock_move.l10n_ro_move_type in ("consumption", "consumption_return")
+                and src_location.l10n_ro_consume_on_entry
+                != dest_location.l10n_ro_consume_on_entry
+            ):
+                # Consumption on entry to pre-production: the expense belongs
+                # to the pre-production location, the stock to the warehouse.
+                consume, warehouse_location = (
+                    (dest_location, src_location)
+                    if dest_location.l10n_ro_consume_on_entry
+                    else (src_location, dest_location)
+                )
+                inc_acc = consume.l10n_ro_property_account_income_location_id
+                exp_acc = consume.l10n_ro_property_account_expense_location_id
+                stock_acc = (
+                    warehouse_location.l10n_ro_property_stock_valuation_account_id
+                )
+            elif src_location.usage == "internal":
                 inc_acc = src_location.l10n_ro_property_account_income_location_id
                 exp_acc = src_location.l10n_ro_property_account_expense_location_id
                 stock_acc = src_location.l10n_ro_property_stock_valuation_account_id

@@ -20,6 +20,7 @@
                         name="l10n_ro_property_stock_valuation_account_id"
                         options="{'no_create': True}"
                     />
+                    <field name="l10n_ro_consume_on_entry" />
                 </group>
             </xpath>
         </field>

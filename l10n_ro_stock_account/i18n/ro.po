@@ -691,3 +691,33 @@ msgstr ""
 
 #~ msgid "Invoice Line"
 #~ msgstr "Linie factură"
+
+#. module: l10n_ro_stock_account
+#: model:ir.model.fields,field_description:l10n_ro_stock_account.field_stock_location__l10n_ro_consume_on_entry
+msgid "Romania - Consumption on Entry"
+msgstr "Romania - Consum la intrare"
+
+#. module: l10n_ro_stock_account
+#: model:ir.model.fields,help:l10n_ro_stock_account.field_stock_location__l10n_ro_consume_on_entry
+msgid ""
+"Goods are expensed when they enter this location (e.g. the pre-production "
+"location of a 2 or 3 step manufacturing): the transfer from stock records the "
+"consumption (601 = 301), the manufacturing order consumes them without a new "
+"entry and the finished product is recorded at the order's cost (345 = 711). A "
+"return to stock reverses the consumption."
+msgstr ""
+"Bunurile trec pe cheltuială la intrarea în această locație (de ex. "
+"pre-producția unei fabricații în 2 sau 3 pași): transferul din stoc "
+"înregistrează consumul (601 = 301), comanda de producție le consumă fără o "
+"notă nouă, iar produsul finit intră la costul comenzii (345 = 711). Returul "
+"în stoc stornează consumul."
+
+#. module: l10n_ro_stock_account
+#: model:ir.model.fields.selection,name:l10n_ro_stock_account.selection__stock_move__l10n_ro_move_type__consumption_expensed
+msgid "Consumption Already Expensed"
+msgstr "Consum deja trecut pe cheltuială"
+
+#. module: l10n_ro_stock_account
+#: model:ir.model.fields.selection,name:l10n_ro_stock_account.selection__stock_move__l10n_ro_move_type__consumption_expensed_return
+msgid "Consumption Already Expensed Return"
+msgstr "Retur consum deja trecut pe cheltuială"

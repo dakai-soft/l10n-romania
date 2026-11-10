@@ -58,6 +58,27 @@ compensation is detected and not duplicated.
 Controlled by `res.company.fifo_location_negative_compensation`
 (defaults to `True` for Romanian companies, editable per company).
 
+## Consumption on entry (2-step manufacturing)
+
+In a 2 or 3 step manufacturing, the components are first moved from stock to
+the pre-production location, then consumed by the manufacturing order. Tick
+**Romania - Consumption on Entry** on the pre-production location
+(`l10n_ro_consume_on_entry`) to record the consumption when the components
+are handed over to production, not when the order is finished:
+
+| Move | `l10n_ro_move_type` | Entry |
+|---|---|---|
+| Stock → Pre-production | `consumption` | `601 = 301` |
+| Pre-production → Stock | `consumption_return` | reversal |
+| Pre-production → Production (the order) | `consumption_expensed` | none; the move keeps its value, so the finished product gets the components' cost |
+| Production → Pre-production | `consumption_expensed_return` | none |
+
+The finished product is recorded as usual (`345 = 711`). An order still open
+at month end has its components already expensed, ready for the work in
+progress (`331 = 711`). Without the flag, the moves stay internal transfers.
+The stock reports still list the quantities of the pre-production location,
+while the accounting already expensed them.
+
 ## Dropship valuation
 
 A dropship move (supplier location straight to a customer location, goods

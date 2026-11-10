@@ -34,6 +34,15 @@ class StockLocation(models.Model):
         company_dependent=True,
         domain=ACCOUNT_DOMAIN,
     )
+    l10n_ro_consume_on_entry = fields.Boolean(
+        string="Romania - Consumption on Entry",
+        help="Goods are expensed when they enter this location (e.g. the "
+        "pre-production location of a 2 or 3 step manufacturing): the transfer "
+        "from stock records the consumption (601 = 301), the manufacturing order "
+        "consumes them without a new entry and the finished product is recorded "
+        "at the order's cost (345 = 711). A return to stock reverses the "
+        "consumption.",
+    )
 
     def propagate_account(self):
         for location in self:
