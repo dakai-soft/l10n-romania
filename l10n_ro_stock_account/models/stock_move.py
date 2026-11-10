@@ -33,6 +33,8 @@ MOVE_TYPE = [
     ("usage_giving_return", "Usage Giving Return"),
     ("production", "Production"),
     ("production_return", "Production Return"),
+    ("consumption_expensed", "Consumption Already Expensed"),
+    ("consumption_expensed_return", "Consumption Already Expensed Return"),
     ("internal_transfer", "Internal Transfer"),
     ("internal_transit_out", "Internal Transit Out"),
     ("internal_transit_in", "Internal Transit In"),
@@ -183,6 +185,9 @@ class StockMove(models.Model):
         self.ensure_one()
         if not self.is_l10n_ro_record:
             return False
+        move_type = self._get_l10n_ro_consume_on_entry_type()
+        if move_type:
+            return move_type
         if (
             self.location_id.usage != "internal"
             and self.location_dest_id.usage == "internal"
@@ -256,6 +261,39 @@ class StockMove(models.Model):
             return "dropshipped_return"
         return False
 
+    def _get_l10n_ro_consume_on_entry_type(self):
+        """Moves of a location with consumption on entry (pre-production).
+
+        Entering it from stock is the consumption (601 = 301), going back to
+        stock reverses it; the manufacturing order consuming from it (and a
+        component sent back to it) books nothing: it is already an expense.
+        """
+        source, destination = self.location_id, self.location_dest_id
+        if source.l10n_ro_consume_on_entry == destination.l10n_ro_consume_on_entry:
+            return False
+        if destination.l10n_ro_consume_on_entry:
+            if source.usage == "internal":
+                return "consumption"
+            if source.usage == "production":
+                return "consumption_expensed_return"
+        if source.l10n_ro_consume_on_entry:
+            if destination.usage == "internal":
+                return "consumption_return"
+            if destination.usage == "production":
+                return "consumption_expensed"
+        return False
+
+    def _l10n_ro_is_internal_valued(self):
+        """A move between two internal locations valued by this module (an
+        internal transfer or a consumption on entry to pre-production)."""
+        return (
+            self.is_l10n_ro_record
+            and self.location_id.usage == "internal"
+            and self.location_dest_id.usage == "internal"
+            and self.l10n_ro_move_type
+            in ("internal_transfer", "consumption", "consumption_return")
+        )
+
     def _get_in_move_lines(self, lot=None):
         res = super()._get_in_move_lines(lot=lot)
         for move_line in self.move_line_ids:
@@ -307,9 +345,7 @@ class StockMove(models.Model):
         res = super(StockMove, self - ro_dropship_moves)._set_value(
             correction_quantity=correction_quantity
         )
-        ro_internal_moves = self.filtered(
-            lambda m: m.is_l10n_ro_record and m.l10n_ro_move_type == "internal_transfer"
-        )
+        ro_internal_moves = self.filtered(lambda m: m._l10n_ro_is_internal_valued())
         for move in ro_internal_moves:
             # Since we create double entry throught transfer account
             # we need to set the value to the same as the stock valuation
@@ -442,9 +478,7 @@ class StockMove(models.Model):
     def _action_done(self, cancel_backorder=False):
         ro_moves = self.filtered(lambda m: m.is_l10n_ro_record)
         ro_moves._set_locations_from_move_line()
-        ro_internal_moves = ro_moves.filtered(
-            lambda m: m.l10n_ro_move_type == "internal_transfer"
-        )
+        ro_internal_moves = ro_moves.filtered(lambda m: m._l10n_ro_is_internal_valued())
         ro_internal_moves._set_value()
         res = super()._action_done(cancel_backorder=cancel_backorder)
         for move in ro_moves:
