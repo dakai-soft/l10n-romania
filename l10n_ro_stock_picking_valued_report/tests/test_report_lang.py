@@ -13,7 +13,12 @@ class PickingValuedReportLangCases:
         self.env["ir.module.module"]._load_module_terms(
             ["l10n_ro_stock_picking_valued_report"], ["ro_RO"], overwrite=True
         )
-        (picking.partner_id | picking.move_ids.partner_id).lang = "ro_RO"
+        # Other modules may print in the partner's or in the company's language.
+        (
+            picking.partner_id
+            | picking.move_ids.partner_id
+            | picking.company_id.partner_id
+        ).lang = "ro_RO"
         content = (
             self.env["ir.actions.report"]
             .with_context(lang="ro_RO")
