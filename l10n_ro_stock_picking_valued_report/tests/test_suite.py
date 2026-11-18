@@ -4,6 +4,7 @@
 from odoo.tests import tagged
 
 from .common import TestStockPickingValued
+from .test_report_lang import PickingValuedReportLangCases
 from .test_ro_stock_avg import PickingValuedAvgCases
 from .test_ro_stock_fifo import PickingValuedFifoCases
 
@@ -12,6 +13,7 @@ from .test_ro_stock_fifo import PickingValuedFifoCases
 class TestStockPickingValuedReport(
     PickingValuedAvgCases,
     PickingValuedFifoCases,
+    PickingValuedReportLangCases,
     TestStockPickingValued,
 ):
     """Every scenario that runs on the module's common setup.
