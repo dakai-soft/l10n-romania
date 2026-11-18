@@ -116,12 +116,18 @@
             position="after"
         >
             <tr t-if="o.company_id.country_id.code == 'RO'">
+                <!-- invoice_currency_rate is invoice currency per company
+                     currency unit: print its inverse, lei per unit -->
+                <t
+                    t-set="l10n_ro_rate"
+                    t-value="o.invoice_currency_rate and 1 / o.invoice_currency_rate"
+                />
                 <td>Exchange Rate</td>
                 <td class="text-end">
                     1 <span t-esc="o.currency_id.symbol" /> =
                     <span
-                    t-esc="o.invoice_currency_rate"
-                    t-options='{"widget": "float", "precision": 5}'
+                    t-esc="l10n_ro_rate"
+                    t-options='{"widget": "float", "precision": 4}'
                 />
                     <span t-esc="o.company_id.currency_id.symbol" />
                 </td>
