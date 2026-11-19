@@ -254,15 +254,38 @@ class TestNonDeductibleVAT(TestNondeductibleCommon):
             )
         return {code: amount for code, amount in balances.items() if amount}
 
+    def _nd_bill(self, **values):
+        """A bill of 100 + 21% VAT, 50% non-deductible."""
+        return self.env["account.move"].create(
+            {
+                "move_type": "in_invoice",
+                "partner_id": self.fbr_partner.id,
+                "invoice_date": fields.Date.today(),
+                "invoice_line_ids": [
+                    Command.create(
+                        {
+                            "name": "Partial item",
+                            "product_id": self.product_fifo.id,
+                            "account_id": self.account_expense.id,
+                            "price_unit": 100,
+                            "quantity": 1,
+                            "deductible_amount": 50.00,
+                            "tax_ids": [Command.set(self.tax.ids)],
+                        }
+                    )
+                ],
+                **values,
+            }
+        )
+
     def test_refund_mirrors_invoice(self):
         """The credit note of a 50% non-deductible bill takes the non-deductible
         base out of the expense account, as the bill does, with the other sign."""
-        invoice = self.nd_invoice
-        invoice.invoice_line_ids.deductible_amount = 50
+        invoice = self._nd_bill()
         invoice.action_post()
         self.assertEqual(self._balances_by_account(invoice)["607000"], 50.0)
         self.assertEqual(self._balances_by_account(invoice)["607100"], 50.0)
-        refund = invoice._reverse_moves()
+        refund = invoice._reverse_moves([{"invoice_date": invoice.invoice_date}])
         refund.action_post()
         self.assertEqual(
             self._balances_by_account(refund),
@@ -276,8 +299,7 @@ class TestNonDeductibleVAT(TestNondeductibleCommon):
         """In a foreign currency the non-deductible base is the share of the
         amount in currency, and of the balance in the company currency."""
         currency = self.setup_other_currency("EUR")
-        invoice = self.nd_invoice.copy({"currency_id": currency.id})
-        invoice.invoice_line_ids.deductible_amount = 50
+        invoice = self._nd_bill(currency_id=currency.id)
         product_line = invoice.invoice_line_ids
         storno = invoice.line_ids.filtered(
             lambda line: line.display_type == "non_deductible_product"
