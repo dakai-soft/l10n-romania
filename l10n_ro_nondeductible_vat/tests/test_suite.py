@@ -246,6 +246,50 @@ class TestNonDeductibleVAT(TestNondeductibleCommon):
             "Deductible amount should be 0 for 100% non-deductible line",
         )
 
+    def _balances_by_account(self, move):
+        balances = {}
+        for line in move.line_ids:
+            balances[line.account_id.code] = round(
+                balances.get(line.account_id.code, 0.0) + line.balance, 2
+            )
+        return {code: amount for code, amount in balances.items() if amount}
+
+    def test_refund_mirrors_invoice(self):
+        """The credit note of a 50% non-deductible bill takes the non-deductible
+        base out of the expense account, as the bill does, with the other sign."""
+        invoice = self.nd_invoice
+        invoice.invoice_line_ids.deductible_amount = 50
+        invoice.action_post()
+        self.assertEqual(self._balances_by_account(invoice)["607000"], 50.0)
+        self.assertEqual(self._balances_by_account(invoice)["607100"], 50.0)
+        refund = invoice._reverse_moves()
+        refund.action_post()
+        self.assertEqual(
+            self._balances_by_account(refund),
+            {
+                code: -amount
+                for code, amount in self._balances_by_account(invoice).items()
+            },
+        )
+
+    def test_foreign_currency_base_split(self):
+        """In a foreign currency the non-deductible base is the share of the
+        amount in currency, and of the balance in the company currency."""
+        currency = self.setup_other_currency("EUR")
+        invoice = self.nd_invoice.copy({"currency_id": currency.id})
+        invoice.invoice_line_ids.deductible_amount = 50
+        product_line = invoice.invoice_line_ids
+        storno = invoice.line_ids.filtered(
+            lambda line: line.display_type == "non_deductible_product"
+        )
+        total = invoice.line_ids.filtered(
+            lambda line: line.display_type == "non_deductible_product_total"
+        )
+        self.assertEqual(storno.amount_currency, -product_line.amount_currency / 2)
+        self.assertEqual(storno.balance, -product_line.balance / 2)
+        self.assertEqual(total.amount_currency, product_line.amount_currency / 2)
+        self.assertEqual(total.balance, product_line.balance / 2)
+
     def test_invalid_deductible_amount_raises(self):
         line = self.nd_invoice.invoice_line_ids[0]
         # Try to set an invalid deductible amount

@@ -276,9 +276,6 @@ class AccountMove(models.Model):
             if non_deductible_base_lines:
                 to_delete += non_deductible_base_lines.ids
 
-            sign = move.direction_sign
-            rate = move.invoice_currency_rate
-
             for line in move.line_ids.filtered(
                 lambda line: line.display_type == "product"
             ):
@@ -290,19 +287,15 @@ class AccountMove(models.Model):
                 if move._l10n_ro_line_is_on_payment(line):
                     continue
 
+                # The balance and the amount in currency are already signed (a
+                # refund has them negative): take the share of each, in its own
+                # currency.
                 percentage = 1 - line.deductible_amount / 100
-                non_deductible_subtotal = line.currency_id.round(
+                non_deductible_base = line.company_currency_id.round(
                     line.balance * percentage
                 )
-                non_deductible_base = line.currency_id.round(
-                    sign * non_deductible_subtotal
-                )
-                non_deductible_base_currency = (
-                    line.company_currency_id.round(
-                        sign * non_deductible_subtotal / rate
-                    )
-                    if rate
-                    else sign * non_deductible_subtotal
+                non_deductible_base_currency = line.currency_id.round(
+                    line.amount_currency * percentage
                 )
                 tax = line.tax_ids.filtered(lambda t: t.amount_type != "fixed")
                 rep_lines = move._get_l10n_ro_nd_repartition_lines(tax)
